@@ -1,0 +1,42 @@
+# 로컬 개발용 인프라. AWS RDS/ElastiCache 대체.
+# prod 에서는 이 파일 대신 infra/terraform 을 사용한다.
+name: crez-content-factory
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: cf-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crez
+      POSTGRES_PASSWORD: crez
+      POSTGRES_DB: crez
+      TZ: UTC
+    ports:
+      - '55434:5432'
+    volumes:
+      - cf-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U crez -d crez']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: cf-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '56379:6379'
+    volumes:
+      - cf-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  cf-pgdata:
+  cf-redisdata:
