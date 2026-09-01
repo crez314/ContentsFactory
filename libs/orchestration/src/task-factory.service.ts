@@ -128,8 +128,16 @@ export class TaskFactory implements OnModuleDestroy {
     JobEnvelope.parse(envelope); // 투입 전 계약 검증
 
     await this.queue(spec.name).add(task.kind, envelope, {
-      // BullMQ jobId 는 ':' 를 허용하지 않으므로 멱등키의 구분자를 치환한다.
-      jobId: `${task.idempotencyKey.replace(/:/g, '~')}#${attempt}`,
+      /**
+       * BullMQ jobId 는 ':' 를 허용하지 않으므로 멱등키의 구분자를 치환한다.
+       *
+       * 뒤에 nonce 를 붙이는 이유 — BullMQ 는 같은 jobId 의 add 를 조용히 무시한다.
+       * 죽은 Task 를 되살릴 때(retryCount 가 그대로면) 같은 jobId 가 만들어져
+       * 큐 투입이 사라지고 Task 가 QUEUED 인 채 영원히 멈춘다.
+       * 중복 실행 방지는 §3.5 의 조건부 UPDATE(claim)가 담당하므로,
+       * 여기서는 매 투입을 별개 Job 으로 두는 편이 안전하다.
+       */
+      jobId: `${task.idempotencyKey.replace(/:/g, '~')}#${attempt}#${Date.now().toString(36)}`,
       priority: task.priority, // 0~4, 낮을수록 먼저
       delay: delayMs,
       removeOnComplete: 500,

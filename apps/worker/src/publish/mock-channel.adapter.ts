@@ -46,6 +46,7 @@ export class MockChannelAdapter implements ChannelAdapter {
         visibility: req.visibility,
         sourceKey: req.storageKey,
         subtitleKey: req.subtitleKey ?? null,
+        provenance: req.provenance ?? null,
         durationMs: req.durationMs,
         bytes: head.size,
         uploadedAt: new Date().toISOString(),

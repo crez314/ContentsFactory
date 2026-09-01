@@ -21,6 +21,8 @@ import { CaptionService } from './generation/caption.service';
 import { QcEngineService } from './qc/qc-engine.service';
 import { ChannelOptimizerService } from './publish/channel-optimizer.service';
 import { CredentialsService } from './publish/credentials.service';
+import { ProvenanceService } from './publish/provenance.service';
+import { ChannelHealthService } from '@cf/orchestration';
 import { AutoTagService } from './tagging/auto-tag.service';
 import { HeartbeatService } from './heartbeat.service';
 
@@ -50,6 +52,8 @@ import { HeartbeatService } from './heartbeat.service';
     QcEngineService,
     ChannelOptimizerService,
     CredentialsService,
+    ProvenanceService,
+    ChannelHealthService,
     SelectionProcessor,
     BlueprintProcessor,
     ImageGenerationProcessor,

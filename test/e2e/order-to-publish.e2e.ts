@@ -22,7 +22,11 @@ interface Content {
   qc: { verdict: string; totalScore: number; areaScores: Record<string, number>; violations: unknown[] } | null;
   scenes: Array<{ id: string; seq: number; status: string; sourceType: string }>;
   lineage: { sourceAssetIds: string[] };
-  publications: Array<{ id: string; status: string; visibility: string; externalUrl: string | null }>;
+  publications: Array<{
+    id: string; status: string; visibility: string; externalUrl: string | null;
+    provenanceManifestId: string | null; watermarkId: string | null;
+    phash: string | null; frameSignature: { algo: string; frames: unknown[] } | null;
+  }>;
   approvals: Array<{ decision: string; auto: boolean; levelAt: number }>;
 }
 
@@ -162,6 +166,25 @@ async function main(): Promise<void> {
   check('V1 은 비공개 업로드 고정', pub?.visibility === 'PRIVATE', pub?.visibility);
   check('외부 URL 이 저장되었다', Boolean(pub?.externalUrl));
 
+  section('8.1 정품 표식 (§4.8.1 · v1.1)');
+  // 계보는 사후 소급 생성이 불가능하므로 첫 게시부터 남아 있어야 한다.
+  check('C2PA 매니페스트 ID 가 저장되었다', Boolean(pub?.provenanceManifestId), pub?.provenanceManifestId);
+  check('워터마크 식별자가 저장되었다', Boolean(pub?.watermarkId), pub?.watermarkId);
+  check('지각 해시가 저장되었다 (64bit hex)', /^[0-9a-f]{16}$/.test(pub?.phash ?? ''), pub?.phash);
+  check('영상은 프레임 시그니처를 남긴다',
+    content.outputType !== 'VIDEO' || (pub?.frameSignature?.frames.length ?? 0) > 0, pub?.frameSignature?.algo);
+
+  section('8.2 채널 안전 게시 제어 (§4.9 · v1.1)');
+  const health = await operator.get<Array<{ id: string; healthState: string; dailyCap: number;
+    headroom: { available: number; reason: string } }>>('/channels/health');
+  const ytHealth = health.find((h) => h.id === youtube.id);
+  check('채널 건강 상태를 조회할 수 있다', Boolean(ytHealth), health.length);
+  check('게시한 채널은 ACTIVE 이다', ytHealth?.healthState === 'ACTIVE', ytHealth?.healthState);
+  check('헤드룸이 계산된다', typeof ytHealth?.headroom.available === 'number', ytHealth?.headroom);
+
+  const observed = await operator.post<{ state: string }>(`/channels/${youtube.id}/observe`);
+  check('일일 관측이 상태를 판정한다', ['ACTIVE', 'THROTTLED', 'QUARANTINE'].includes(observed.state), observed.state);
+
   section('9. 4-eyes 원칙 (§6.2)');
   // operator 가 만든 오더의 콘텐츠를 operator 본인이 승인 시도 → 거부되어야 한다.
   // 이미 PUBLISHED 라 상태 전이로 먼저 막히므로, 새 콘텐츠를 READY 로 만들어 확인한다.
@@ -210,6 +233,29 @@ async function main(): Promise<void> {
       check('수동 승인 오더 제출', false, manualSubmit.order.status);
     }
   }
+
+  section('10.1 지표 측정 정의 (§9.5 · v1.1)');
+  const metrics = await operator.get<{ windowDays: number; metrics: Array<{ key: string; value: number | null; formula: string; source: string }> }>(
+    '/metrics?days=30',
+  );
+  const expectedKeys = [
+    'leadTimeSec', 'unitCostKrw', 'contentsPerShoot', 'successRate', 'automationRate',
+    'reworkRate', 'qcAccuracy', 'identityScore', 'orderExecRate', 'blockedSavingKrw',
+  ];
+  check('명세의 10개 지표를 모두 낸다',
+    expectedKeys.every((k) => metrics.metrics.some((m) => m.key === k)),
+    metrics.metrics.map((m) => m.key));
+  check('모든 지표가 산식과 소스를 명시한다',
+    metrics.metrics.every((m) => Boolean(m.formula) && Boolean(m.source)));
+  check('리드타임이 측정된다', (metrics.metrics.find((m) => m.key === 'leadTimeSec')?.value ?? 0) > 0);
+  check('자동화율이 측정된다', metrics.metrics.find((m) => m.key === 'automationRate')?.value !== null);
+
+  section('10.2 실패 코퍼스 보존 (§9.5 · v1.1)');
+  const corpus = await operator.get<{ taskFailures: unknown[]; qcFailures: unknown[]; coverageGaps: unknown[] }>(
+    '/metrics/failure-corpus?days=90',
+  );
+  check('실패 이력을 조회할 수 있다 (삭제하지 않는다)',
+    Array.isArray(corpus.taskFailures) && Array.isArray(corpus.qcFailures) && Array.isArray(corpus.coverageGaps));
 
   section('11. 비용 기록 (§9.4)');
   const costs = await operator.get<{ byProvider: Array<{ provider: string; cost: number }> }>('/dashboard/costs?days=1');

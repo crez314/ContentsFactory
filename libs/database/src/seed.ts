@@ -126,7 +126,17 @@ export async function seed(ds: DataSource): Promise<void> {
   const channelRepo = ds.getRepository(Channel);
   for (const c of CHANNELS) {
     const existing = await channelRepo.findOne({ where: { platform: c.platform, handle: c.handle } });
-    if (!existing) await channelRepo.insert({ ...c, status: 'ACTIVE' });
+    if (!existing) {
+      await channelRepo.insert({
+        ...c,
+        status: 'ACTIVE',
+        // §4.9 안전 게시 제어 기본값. 로컬은 .env 로 완화할 수 있다.
+        healthState: 'ACTIVE',
+        dailyCap: config.channel.defaultDailyCap,
+        minIntervalMin: config.channel.minIntervalMin,
+        observedSafeMax: Math.max(config.channel.defaultDailyCap, 3),
+      });
+    }
   }
   log.info('channels seeded', { count: CHANNELS.length });
 
@@ -185,6 +195,8 @@ export async function seed(ds: DataSource): Promise<void> {
         allowedChannels: ['youtube', 'instagram', 'tiktok', 'x'],
         allowedRegions: krOnly ? ['KR'] : ['KR', 'JP'],
         derivativeAllowed: i % 13 !== 0, // 열세 번째마다 2차가공 불허 (DERIVATIVE_DENIED 재현)
+        // §4.3 v1.1 — 단계값. 허용이면 AI 생성까지, 불허면 0.
+        derivativeLevel: i % 13 !== 0 ? 3 : 0,
         validFrom: new Date(today.getTime() - 365 * 86_400_000).toISOString().slice(0, 10),
         validUntil: new Date(today.getTime() + (expiring ? 20 : 540) * 86_400_000).toISOString().slice(0, 10),
         contractRef: `CTR-2026-${String(i).padStart(3, '0')}`,

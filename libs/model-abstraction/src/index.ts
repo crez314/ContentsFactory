@@ -5,6 +5,7 @@ export * from './cost-guard.service';
 export * from './notifier.service';
 export * from './vector';
 export * from './media/png';
+export * from './media/phash';
 export * from './media/ffmpeg';
 export * from './backends/mock-base';
 export * from './backends/mock-image.backend';

@@ -21,6 +21,8 @@ export * from './task.entity';
 export * from './task-event.entity';
 export * from './cost-log.entity';
 export * from './master.entity';
+export * from './coverage-gap.entity';
+export * from './channel-health-log.entity';
 
 import { User } from './user.entity';
 import { AuditLog } from './audit-log.entity';
@@ -45,10 +47,12 @@ import { Task } from './task.entity';
 import { TaskEvent } from './task-event.entity';
 import { CostLog } from './cost-log.entity';
 import { MasterAttributeValue, MasterBannedTerm } from './master.entity';
+import { CoverageGap } from './coverage-gap.entity';
+import { ChannelHealthLog } from './channel-health-log.entity';
 
 export const ALL_ENTITIES = [
   User, AuditLog, SystemFlag, Artist, Asset, AssetLicense, Channel, Agent,
   Order, Selection, Blueprint, Content, Scene, GeneratedAsset, AssetUsage,
   QcResult, Approval, Publication, AnalyticsSnapshot, Task, TaskEvent, CostLog,
-  MasterAttributeValue, MasterBannedTerm,
+  MasterAttributeValue, MasterBannedTerm, CoverageGap, ChannelHealthLog,
 ];

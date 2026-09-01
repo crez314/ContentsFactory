@@ -4,8 +4,10 @@ import { Channel, Content, GeneratedAsset, Publication, type Platform } from '@c
 import { AppError, createLogger, serializeError } from '@cf/common';
 import { StorageService } from '@cf/storage';
 import { PublishResult, type JobEnvelope } from '@cf/queue';
+import { ChannelHealthService } from '@cf/orchestration';
 import { ChannelOptimizerService } from '../publish/channel-optimizer.service';
 import { CredentialsService } from '../publish/credentials.service';
+import { ProvenanceService } from '../publish/provenance.service';
 import { MockChannelAdapter } from '../publish/mock-channel.adapter';
 import type { ChannelAdapter } from '../publish/channel-adapter';
 import type { TaskProcessor } from './processor.registry';
@@ -25,6 +27,8 @@ export class PublishProcessor implements TaskProcessor {
     private readonly storage: StorageService,
     private readonly optimizer: ChannelOptimizerService,
     private readonly credentials: CredentialsService,
+    private readonly health: ChannelHealthService,
+    private readonly provenance: ProvenanceService,
   ) {
     // 실제 플랫폼 연동이 준비되면 여기서 어댑터만 교체한다 (§8.2).
     for (const p of ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'] as Platform[]) {
@@ -73,11 +77,23 @@ export class PublishProcessor implements TaskProcessor {
       const adapter = this.adapters.get(channel.platform);
       if (!adapter) throw new AppError('PLATFORM_UPLOAD_FAILED', { message: `어댑터가 없습니다: ${channel.platform}` });
 
+      // 0) §4.9 채널 안전 게시 한도.
+      // 여유가 없으면 여기서 던지고, 다음 슬롯에서 재시도로 재개된다.
+      const room = await this.health.assertCanPublish(channel.id);
+
       // 1) 자격증명
       await this.credentials.resolve(channel.credentialRef);
 
       // 2) 채널 규격 변환
       const optimized = await this.optimizer.forChannel(content, channel);
+
+      // 2.5) §4.8.1 정품 표식. 업로드 직전, 최종 산출물이 확정된 뒤에 만든다.
+      // 실패하면 게시를 중단한다 — 표식 없는 게시물은 이후 소명이 불가능하다.
+      const marks = await this.provenance.sign({
+        contentId,
+        storageKey: optimized.storageKey,
+        channelId: channel.id,
+      });
 
       // 3) 업로드 — V1 은 PRIVATE 고정.
       // 비공개 업로드를 지원하지 않는 플랫폼은 UNLISTED 로 내려간다. PUBLIC 으로는 절대 올리지 않는다.
@@ -93,6 +109,7 @@ export class PublishProcessor implements TaskProcessor {
       });
 
       const uploaded = await adapter.upload({
+        provenance: { manifestKey: marks.manifestKey, watermarkId: marks.watermarkId, phash: marks.phash },
         filePath: await this.storage.materialize(optimized.storageKey),
         storageKey: optimized.storageKey,
         title: optimized.title,
@@ -104,12 +121,16 @@ export class PublishProcessor implements TaskProcessor {
         subtitleKey: subtitle?.storageKey ?? null,
       });
 
-      // 4) 외부 ID·URL 저장
+      // 4) 외부 ID·URL + 정품 표식 저장
       pub.externalId = uploaded.id;
       pub.externalUrl = uploaded.url;
       pub.visibility = visibility;
       pub.status = 'UPLOADED';
       pub.error = null;
+      pub.provenanceManifestId = marks.manifestId;
+      pub.watermarkId = marks.watermarkId;
+      pub.phash = marks.phash;
+      pub.frameSignature = marks.frameSignature;
       await pubRepo.save(pub);
 
       // 업로드까지가 파이프라인의 끝이다. PUBLISHED 는 사람이 공개 전환할 때 붙는다.
@@ -122,6 +143,7 @@ export class PublishProcessor implements TaskProcessor {
       PublishResult.parse(result);
       this.log.info('publish completed', {
         contentId, provider: channel.platform, externalId: uploaded.id, visibility,
+        phash: marks.phash, headroomLeft: room.available - 1,
       });
       return result;
     } catch (err) {

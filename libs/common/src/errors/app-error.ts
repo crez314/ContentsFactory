@@ -7,7 +7,13 @@ export type FailureClass =
   | 'BUDGET_EXCEEDED'
   | 'POLICY_VIOLATION'
   | 'INVALID_INPUT'
-  | 'RETRY_EXHAUSTED';
+  | 'RETRY_EXHAUSTED'
+  /**
+   * v1.1 §4.9 — 실패가 아니라 이월이다.
+   * 채널 안전 한도에 걸린 게시는 다음 슬롯에 그대로 다시 시도하며,
+   * 재시도 예산을 소모하지 않는다. 콘텐츠 상태도 건드리지 않는다.
+   */
+  | 'DEFERRED';
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -51,7 +57,18 @@ function defaultFailureClass(code: ErrorCode): FailureClass {
     case 'INVALID_INPUT':
     case 'SPEC_MISMATCH':
     case 'INSUFFICIENT_ASSETS':
+    // 선별 반려는 재시도해도 결과가 같다. 자산을 늘리거나 조건을 바꿔야 한다.
+    case 'SELECTION_NO_ELIGIBLE_ASSET':
+    case 'SELECTION_INSUFFICIENT_COVERAGE':
       return 'INVALID_INPUT';
+    // §4.9 채널 여유 부족·격리는 콘텐츠 문제가 아니다. 이월한다.
+    case 'CHANNEL_HEADROOM_EXCEEDED':
+    case 'CHANNEL_QUARANTINED':
+      return 'DEFERRED';
+    // §4.8.1 표식 생성 실패는 일시 오류일 수 있으므로 재시도하고, 소진되면 에스컬레이션한다.
+    // 콘텐츠 자체는 정상이므로 BLOCKED 로 내리지 않는다.
+    case 'PROVENANCE_SIGNING_FAILED':
+      return 'TRANSIENT';
     case 'RETRY_EXHAUSTED':
       return 'RETRY_EXHAUSTED';
     default:

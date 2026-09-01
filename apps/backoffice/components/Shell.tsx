@@ -21,11 +21,14 @@ const NAV: Array<{ group: string; items: Array<{ href: string; label: string }> 
     { href: '/assets/tagging', label: '태깅 검토 대기열' },
     { href: '/assets/licenses', label: '라이선스 관리' },
     { href: '/assets/coverage', label: '커버리지' },
+    { href: '/assets/gaps', label: '커버리지 부족' },
   ]},
   { group: '운영', items: [
     { href: '/ops/tasks', label: 'Task 모니터' },
     { href: '/ops/escalations', label: '실패 · 에스컬레이션' },
     { href: '/ops/costs', label: '비용' },
+    { href: '/ops/channel-health', label: '채널 안전 게시' },
+    { href: '/ops/metrics', label: '운영 지표' },
   ]},
   { group: '설정', items: [
     { href: '/settings/agents', label: '에이전트' },

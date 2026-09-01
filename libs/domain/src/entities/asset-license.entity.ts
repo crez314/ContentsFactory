@@ -13,6 +13,11 @@ export class AssetLicense {
   /** ISO 국가코드. 예: {'KR','JP'} */
   @Column({ name: 'allowed_regions', type: 'text', array: true, default: () => "'{}'" }) allowedRegions: string[];
   @Column({ name: 'derivative_allowed', type: 'boolean', default: true }) derivativeAllowed: boolean;
+  /**
+   * §4.3 2차 가공 허용 수준 (0 불허 / 1 단순편집 / 2 합성·변형 / 3 AI 생성).
+   * derivative_allowed 로는 "어느 수준까지"를 표현하지 못해 단계값으로 승격했다.
+   */
+  @Column({ name: 'derivative_level', type: 'smallint', default: 0 }) derivativeLevel: number;
   @Column({ name: 'valid_from', type: 'date' }) validFrom: string;
   @Column({ name: 'valid_until', type: 'date' }) validUntil: string;
   @Column({ name: 'contract_ref', type: 'varchar', length: 120, nullable: true }) contractRef: string | null;

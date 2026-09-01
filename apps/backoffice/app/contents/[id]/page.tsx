@@ -28,7 +28,9 @@ interface Detail {
   approvals: Array<{ id: string; decision: string; auto: boolean; levelAt: number; comment: string | null;
     createdAt: string; decider?: { name: string } | null }>;
   publications: Array<{ id: string; status: string; visibility: string; externalUrl: string | null;
-    channel?: { handle: string; platform: string } | null }>;
+    channel?: { handle: string; platform: string } | null;
+    provenanceManifestId: string | null; watermarkId: string | null;
+    phash: string | null; frameSignature: { algo: string; frames: Array<{ atMs: number; phash: string }> } | null }>;
   lineage: { sourceAssetIds: string[]; items: Array<{ assetId: string; sceneId: string | null;
     usageWeight: number; attributes: Record<string, string>; qualityGrade: string | null; thumbnailUrl: string | null }> };
 }
@@ -150,6 +152,18 @@ export default function ContentDetailPage() {
                 <span className={`badge ${p.visibility === 'PUBLIC' ? 'ok' : 'warn'}`}>{p.visibility}</span>
               </div>
               {p.externalUrl && <a className="sub mono" href={p.externalUrl} target="_blank" rel="noreferrer">{p.externalUrl}</a>}
+              {p.provenanceManifestId && (
+                <div className="sub mono" style={{ marginTop: 4, fontSize: 11, lineHeight: 1.6 }}>
+                  <div title="C2PA 매니페스트 — 플랫폼 업로드에서 제거될 수 있음">
+                    🔏 {p.provenanceManifestId.slice(0, 26)}…
+                  </div>
+                  <div title="재인코딩·크롭 이후에도 잔존하는 워터마크">💧 {p.watermarkId}</div>
+                  <div title="최후 대조 수단인 지각 해시">
+                    #️⃣ {p.phash}
+                    {p.frameSignature && ` · 프레임 ${p.frameSignature.frames.length}개`}
+                  </div>
+                </div>
+              )}
               {p.visibility !== 'PUBLIC' && ['UPLOADED', 'PUBLISHED'].includes(p.status) && (
                 <button className="primary" style={{ marginTop: 6 }} disabled={!reviewer || busy}
                   onClick={() => void act(() => api.post(`/publications/${p.id}/publicize`, { visibility: 'PUBLIC' }))}>

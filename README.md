@@ -1,8 +1,9 @@
 # CREZ Content Factory
 
-[PART 4. Content Factory 개발 명세서 v1.0](https://crez.atlassian.net/wiki/spaces/crez/pages/8552449) 구현.
+[PART 4. Content Factory 개발 명세서](https://crez.atlassian.net/wiki/spaces/crez/pages/8552449) **v1.1** 구현.
 
 V1 범위인 **오더 → 생성 → QC → 승인 → 업로드** 파이프라인이 로컬에서 끝까지 동작한다.
+v1.1 에서 추가된 **정품 표식**, **채널 안전 게시 제어**, **커버리지 부족 기록**도 포함한다.
 AWS 계정 없이 개발·디버깅할 수 있도록 S3·Secrets Manager·SNS 플랫폼은 로컬 대체 구현으로 붙어 있고,
 교체 지점이 인터페이스 하나로 좁혀져 있다.
 
@@ -65,8 +66,8 @@ pnpm dev:backoffice      # 3000
 ## 테스트
 
 ```bash
-pnpm test                # 단위·계약 테스트 (56)
-pnpm test:e2e            # 오더 제출 → 게시 전 구간 (34)
+pnpm test                # 단위·계약 테스트 (86)
+pnpm test:e2e            # 오더 제출 → 게시 전 구간 (47)
 pnpm test:e2e:failure    # 장애 시나리오 (10) — 아래 참고
 pnpm test:load           # 동시 오더 10건 + 조회 API p95 측정
 ```
@@ -90,6 +91,21 @@ pnpm test:e2e:failure
 
 ---
 
+## v1.1 에서 추가된 것
+
+| 명세 | 구현 |
+| --- | --- |
+| §4.3 Selection 개정 | 라이선스·정책을 **점수에서 사전 필터로 전환**. 미탐은 법적 리스크로 직결되어 다른 항목 점수로 상쇄될 수 없다. `licenseMargin` 가중치가 사라지고 `eligible()` 이 그 자리를 대신한다 |
+| §4.3 커버리지 부족 | `MIN_FIT`(45) 미달은 실패가 아니라 촬영 계획의 입력. `coverage_gaps` 에 적재해 백오피스에서 조합별로 본다 |
+| §4.3 세션 편중 완화 | `diversify()` — 한 촬영 세션이 결과를 독식하지 못하게 라운드로빈으로 뽑는다 |
+| §4.8.1 정품 표식 | 게시 직전 C2PA 매니페스트(권리자 서명 · 원본 자산 · 라이선스 근거) + 워터마크 식별자 + pHash + 프레임 시그니처를 만들어 `publications` 에 저장. **실패하면 게시를 중단한다** |
+| §4.9 Channel Health | 일일 상한 · 최소 게시 간격 · 격리. 한도 초과 게시는 실패가 아니라 **다음 슬롯으로 이월**된다 |
+| §9.5 지표 측정 정의 | 10개 지표의 산식과 소스를 SQL 한 곳에 고정. 화면·보고서에서 따로 계산하지 않는다 |
+
+pHash 는 의존성 없이 구현했다(32×32 그레이스케일 → 2D DCT → 저주파 8×8 이진화).
+재인코딩에 해밍 거리 0, 절반 축소에 8, 다른 이미지에 26 이 나오는 것을 테스트로 고정했다 —
+플랫폼이 재인코딩해도 정품 대조가 가능해야 하기 때문이다.
+
 ## 로컬 대체 구현
 
 AWS 가 없어서 다음을 대체했다. **계약은 그대로**라서 실제 인프라가 준비되면 구현체만 바꾸면 된다.
@@ -103,6 +119,8 @@ AWS 가 없어서 다음을 대체했다. **계약은 그대로**라서 실제 �
 | 임베딩 API | 결정적 해시 벡터 (동일 인물 성분 지배) | 위와 동일 |
 | SNS 플랫폼 업로드 | 스토리지에 게시 매니페스트 기록 | `apps/worker/src/publish/mock-channel.adapter.ts` |
 | Slack 알림 | 구조화 로그 + 인메모리 버퍼 (대시보드 「주의 필요」) | `libs/model-abstraction/src/notifier.service.ts` |
+| C2PA 서명 · 강인 워터마크 | HMAC 서명 매니페스트 + 결정적 워터마크 식별자 (pHash 는 실제 구현) | `apps/worker/src/publish/provenance.service.ts` |
+| 플랫폼 정책 삭제 통보 | `publications.status = REMOVED` 집계 | `ChannelHealthService.observeToday()` |
 | ECS Fargate | 로컬 프로세스 3개 | `infra/terraform/` |
 
 **Mock 어댑터는 고정 샘플이 아니다.** 프롬프트 시드에서 결정적으로 PNG 를 합성하고,
@@ -118,6 +136,11 @@ ffmpeg 으로 실제 재생 가능한 H.264 + AAC mp4 를 만든다.
 | `MOCK_IDENTITY_BASE=0.6` | 동일성 점수를 낮춤 — Identity 재생성·QC FAIL 재현 |
 | `QC_PASS_SCORE=95` | QC 기준 상향 — 부분 재생성 경로 재현 |
 | `SLA_SCAN_INTERVAL_MS=10000` | SLA 감시 주기 단축 |
+| `CHANNEL_DEFAULT_DAILY_CAP=1` | 채널 상한 축소 — 게시 이월(DEFERRED) 경로 재현 |
+| `CHANNEL_MIN_INTERVAL_MIN=180` | 게시 간격 강제 — 간격 미달 차단 재현 |
+
+로컬 `.env` 는 파이프라인 검증이 막히지 않도록 상한을 100건/0분으로 완화해 두었다.
+Channel Health 자체를 확인할 때만 조이면 된다.
 
 ---
 
@@ -160,11 +183,17 @@ API 도 오더 제출 시 Task 를 만들어야 해서 두 앱이 같은 서비�
 - **음성** — 로컬 TTS 가 없어 자막 길이에 비례한 무음 트랙을 만든다.
   QC 의 무음 탐지는 BGM 이 섞인 최종 트랙을 보므로 통과한다. 실제 TTS 어댑터를 붙이면 사라지는 제약이다.
 - **S3 드라이버** — 계약만 있고 구현이 비어 있다. `STORAGE_DRIVER=s3` 로 켜면 명시적으로 던진다.
+- **C2PA · 워터마크** — 매니페스트는 C2PA 스펙 전체가 아니라 소명에 필요한 사실관계를 담은 서명 문서이고,
+  워터마크는 식별자 생성까지다. 실제 임베딩은 전용 라이브러리가 필요하다.
+  지각 해시는 실제로 동작하므로 이 셋 중 최후 대조 수단은 지금도 유효하다.
 
 ## V1 에서 제외된 것 (§0.1)
 
 성과 수집(Analytics)·Optimization Loop·촬영 가이드 환류·승인 레벨 자동 상향·
-Trend Research·Command Center·100채널 하네스·멀티테넌시는 구현하지 않았다.
+Trend Research·Command Center·100채널 하네스·멀티테넌시,
+그리고 v1.1 이 V2 로 미룬 채널 Health 자동 조정(AIMD)·무단 생성물 탐지·
+다채널 병렬 실험·선별 가중치 자동 갱신은 구현하지 않았다.
 다만 **데이터 모델과 인터페이스는 확보**했다 —
-`analytics_snapshots` 테이블, `asset_usages` 계보, 에이전트 실적 집계(`GET /agents/{id}/stats`)는
+`analytics_snapshots` 테이블, `asset_usages` 계보, 에이전트 실적 집계(`GET /agents/{id}/stats`),
+`coverage_gaps`, `channel_health_logs`, `publications.experiment_id/variant_key` 는
 V1 에서 생성·집계만 하고 활용은 V2 에서 시작한다.

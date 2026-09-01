@@ -11,6 +11,12 @@ export interface UploadRequest {
   credentialRef: string | null;
   durationMs: number | null;
   subtitleKey?: string | null;
+  /**
+   * §4.8.1 정품 표식.
+   * C2PA 를 지원하는 플랫폼에는 매니페스트를 함께 올린다.
+   * 지원하지 않아도 워터마크·지각해시는 파일 자체에 남아 있어 사후 대조가 가능하다.
+   */
+  provenance?: { manifestKey: string; watermarkId: string; phash: string | null };
 }
 
 export interface UploadResult {

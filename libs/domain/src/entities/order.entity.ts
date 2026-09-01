@@ -35,6 +35,10 @@ export class Order {
   @Column({ name: 'budget_cap', type: 'numeric', precision: 14, scale: 2, default: 0, transformer: numericTransformer })
   budgetCap: number;
   @Column({ name: 'approval_level', type: 'smallint', default: 0 }) approvalLevel: number;
+  /** §4.3 사전 필터 — 허용 품질 등급. 비어 있으면 전 등급 허용 */
+  @Column({ name: 'allowed_grades', type: 'text', array: true, default: () => "'{}'" }) allowedGrades: string[];
+  /** §4.3 사전 필터 — 이 오더 수행에 필요한 최소 2차 가공 수준 */
+  @Column({ name: 'derivative_level', type: 'smallint', default: 3 }) derivativeLevel: number;
   @Column({ name: 'scheduled_at', type: 'timestamptz', nullable: true }) scheduledAt: Date | null;
   @Column({ type: 'varchar', length: 24, default: 'DRAFT' }) status: OrderStatus;
   @Column({ name: 'reject_reason', type: 'jsonb', nullable: true }) rejectReason: unknown;

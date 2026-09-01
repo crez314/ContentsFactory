@@ -19,6 +19,9 @@ export const ERROR_CATALOG = {
   ORDER_VALIDATION_FAILED:  { http: 422, message: '오더 사전 검증에 실패했습니다.' },
 
   INSUFFICIENT_ASSETS:      { http: 422, message: '조건에 맞는 자산이 부족합니다.' },
+  // v1.1 §4.3 — 라이선스를 점수가 아니라 사전 필터로 처리하면서 생긴 두 가지 반려 사유
+  SELECTION_NO_ELIGIBLE_ASSET:     { http: 422, message: '라이선스·정책 조건을 만족하는 자산이 없습니다.' },
+  SELECTION_INSUFFICIENT_COVERAGE: { http: 422, message: '적합도 최저 기준에 못 미쳐 반려했습니다. 촬영이 필요한 조합입니다.' },
   LICENSE_CHANNEL_DENIED:   { http: 422, message: '해당 채널·지역에서 사용할 수 없는 자산입니다.' },
   LICENSE_EXPIRED:          { http: 422, message: '선택한 자산의 라이선스가 게시 예정일 이전에 만료됩니다.' },
   DERIVATIVE_DENIED:        { http: 422, message: '2차 가공이 허용되지 않은 자산입니다.' },
@@ -36,6 +39,12 @@ export const ERROR_CATALOG = {
   RETRY_EXHAUSTED:          { http: 500, message: '재시도가 소진되었습니다.' },
   PLATFORM_UPLOAD_FAILED:   { http: 502, message: '채널 업로드에 실패했습니다.' },
   RATE_LIMITED:             { http: 429, message: '호출 한도를 초과했습니다.' },
+
+  // v1.1 §4.9 Channel Health
+  CHANNEL_HEADROOM_EXCEEDED: { http: 429, message: '채널 일일 안전 게시 한도를 초과했습니다. 다음 슬롯으로 이월합니다.' },
+  CHANNEL_QUARANTINED:       { http: 409, message: '채널이 격리 상태입니다. 운영자가 수동으로 해제해야 합니다.' },
+  // v1.1 §4.8.1 정품 표식
+  PROVENANCE_SIGNING_FAILED: { http: 500, message: '정품 표식 생성에 실패해 게시를 중단했습니다.' },
 
   TASK_NOT_FOUND:           { http: 404, message: 'Task 를 찾을 수 없습니다.' },
   TASK_INVALID_STATE:       { http: 409, message: '현재 상태에서 불가능한 Task 전이입니다.' },

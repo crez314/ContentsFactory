@@ -5,6 +5,7 @@ import { ALL_ENTITIES } from '@cf/domain';
 import { config, JwtAuthGuard, RolesGuard } from '@cf/common';
 import { StorageService } from '@cf/storage';
 import { CostGuardService, ModelRegistry, NotifierService, registerBackends } from '@cf/model-abstraction';
+import { ChannelHealthService } from '@cf/orchestration';
 
 import { AuthModule } from './auth/auth.module';
 import { UsersController } from './auth/users.controller';
@@ -16,6 +17,7 @@ import { TaskModule } from './task/task.module';
 import { AgentController } from './agent/agent.controller';
 import { ChannelController } from './channel/channel.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
+import { MetricsController } from './dashboard/metrics.controller';
 import { SystemController } from './system/system.controller';
 import { MasterController } from './master/master.controller';
 import { FilesController } from './files/files.controller';
@@ -47,6 +49,7 @@ import { AuditService } from './common/audit.service';
     AgentController,
     ChannelController,
     DashboardController,
+    MetricsController,
     SystemController,
     MasterController,
     FilesController,
@@ -56,6 +59,7 @@ import { AuditService } from './common/audit.service';
     AuditService,
     NotifierService,
     CostGuardService,
+    ChannelHealthService,
     {
       // 어댑터 등록은 부팅 시 한 번. 벤더 선택은 여기서만 일어난다 (§4.5).
       provide: ModelRegistry,

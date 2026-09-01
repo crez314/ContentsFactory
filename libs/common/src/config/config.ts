@@ -89,6 +89,24 @@ export const config = {
     worker: num('WORKER_PORT', 4002),
   },
 
+  /** §4.9 채널 안전 게시 제어 */
+  channel: {
+    defaultDailyCap: num('CHANNEL_DEFAULT_DAILY_CAP', 3),
+    minIntervalMin: num('CHANNEL_MIN_INTERVAL_MIN', 180),
+    quarantineOnRemoval: bool('CHANNEL_QUARANTINE_ON_REMOVAL', true),
+  },
+
+  /** §4.8.1 정품 표식 */
+  provenance: {
+    signingKeyRef: str('PROVENANCE_SIGNING_KEY_REF', 'secretsmanager://crez/provenance/signing'),
+    /** local 은 Secrets Manager 가 없으므로 이 값을 서명 키로 쓴다 (prod 에서는 거부된다) */
+    localSigningKey: str('PROVENANCE_LOCAL_SIGNING_KEY', 'local-dev-provenance-key'),
+    watermarkStrength: str('WATERMARK_STRENGTH', 'medium') as 'low' | 'medium' | 'high',
+    phashAlgo: str('PHASH_ALGO', 'phash-dct-64'),
+    /** 영상 지각해시를 뽑을 프레임 수 */
+    frameSignatureCount: num('FRAME_SIGNATURE_COUNT', 5),
+  },
+
   ffmpeg: {
     bin: str('FFMPEG_BIN', 'ffmpeg'),
     probeBin: str('FFPROBE_BIN', 'ffprobe'),
@@ -106,5 +124,9 @@ export function assertProductionSafety(): void {
   }
   if (config.storage.driver === 'local') {
     throw new Error('STORAGE_DRIVER=local is not allowed outside local env');
+  }
+  // §4.8.1 표식 없는 게시물은 이후 소명이 불가능하다. 서명 키가 없으면 부팅을 막는다.
+  if (config.provenance.localSigningKey.startsWith('local-dev')) {
+    throw new Error('PROVENANCE signing key must come from Secrets Manager outside local');
   }
 }

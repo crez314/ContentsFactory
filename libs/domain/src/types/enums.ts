@@ -21,6 +21,19 @@ export type Platform = (typeof PLATFORM)[number];
 export const CHANNEL_STATUS = ['ACTIVE', 'PAUSED', 'SUSPENDED'] as const;
 export type ChannelStatus = (typeof CHANNEL_STATUS)[number];
 
+/**
+ * §4.9 채널 건강 상태.
+ * 운영자가 끄고 켜는 status 와는 축이 다르다 — 이쪽은 플랫폼 제재 위험에 대한 자동 판정이다.
+ */
+export const CHANNEL_HEALTH_STATE = ['ACTIVE', 'THROTTLED', 'QUARANTINE'] as const;
+export type ChannelHealthState = (typeof CHANNEL_HEALTH_STATE)[number];
+
+export const CHANNEL_HEALTH_LABELS_KO: Record<ChannelHealthState, string> = {
+  ACTIVE: '정상',
+  THROTTLED: '상한 하향',
+  QUARANTINE: '격리',
+};
+
 export const AGENT_KIND = ['IMAGE', 'VIDEO', 'SCRIPT', 'VOICE', 'MUSIC', 'SUBTITLE'] as const;
 export type AgentKind = (typeof AGENT_KIND)[number];
 
