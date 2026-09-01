@@ -4,13 +4,14 @@ process.env.SERVICE_NAME ??= 'api';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
-import { assertProductionSafety, config, createLogger } from '@cf/common';
+import { assertProductionSafety, config, createLogger, installCrashGuard } from '@cf/common';
 import { getRedis } from '@cf/queue';
 import { AppModule } from './app.module';
 
 const log = createLogger('bootstrap');
 
 async function bootstrap(): Promise<void> {
+  installCrashGuard('api');
   assertProductionSafety();
 
   const app = await NestFactory.create(AppModule, { bufferLogs: false, cors: true });
@@ -38,8 +39,30 @@ async function bootstrap(): Promise<void> {
   }, 10_000);
   beat.unref();
 
+  app.enableShutdownHooks();
   await app.listen(config.ports.api, '0.0.0.0');
   log.info('api listening', { port: config.ports.api, env: config.env, docs: `http://localhost:${config.ports.api}/docs` });
+
+  // 시그널을 받으면 진행 중인 요청을 마무리하고 나간다.
+  // crash-guard 가 유예 시간 내 종료를 보장하지만, 정상 경로는 여기다.
+  let closing = false;
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(sig, () => {
+      if (closing) return;
+      closing = true;
+      clearInterval(beat);
+      void app
+        .close()
+        .then(() => {
+          log.info('api closed gracefully', { signal: sig });
+          process.exit(0);
+        })
+        .catch((err) => {
+          log.error('graceful close failed', { signal: sig, err });
+          process.exit(1);
+        });
+    });
+  }
 }
 
 void bootstrap().catch((err) => {

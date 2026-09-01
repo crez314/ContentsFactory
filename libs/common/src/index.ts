@@ -6,5 +6,6 @@ export * from './auth/roles';
 export * from './auth/decorators';
 export * from './auth/roles.guard';
 export * from './auth/jwt.guard';
+export * from './process/crash-guard';
 export * from './util/ids';
 export * from './util/time';

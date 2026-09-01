@@ -58,7 +58,20 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   const access = tokens.access;
   if (access) headers.set('authorization', `Bearer ${access}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
+  } catch (cause) {
+    // fetch 가 던지면 브라우저는 'Failed to fetch' 밖에 주지 않는다.
+    // 그대로 보여주면 사용자가 무엇을 해야 할지 알 수 없으므로 원인과 조치를 붙인다.
+    throw new ApiError(
+      'API_UNREACHABLE',
+      `API 서버에 연결할 수 없습니다 (${API_BASE}). API 프로세스가 떠 있는지 확인하세요.`,
+      [{ hint: 'pnpm start:api 또는 pnpm dev 로 API 를 기동한 뒤 새로고침하세요.', apiBase: API_BASE, path,
+         cause: cause instanceof Error ? cause.message : String(cause) }],
+      0,
+    );
+  }
 
   if (res.status === 401 && retry && tokens.refresh) {
     // 액세스 토큰 만료 — 회전 발급을 한 번만 시도한다.
@@ -95,11 +108,22 @@ export const api = {
 };
 
 export async function login(email: string, password: string): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (cause) {
+    throw new ApiError(
+      'API_UNREACHABLE',
+      `API 서버에 연결할 수 없습니다 (${API_BASE}).`,
+      [{ hint: 'pnpm start:api 또는 pnpm dev 로 API 를 기동한 뒤 다시 시도하세요.', apiBase: API_BASE,
+         cause: cause instanceof Error ? cause.message : String(cause) }],
+      0,
+    );
+  }
   const body = await res.json();
   if (!res.ok) {
     const e = body.error ?? {};

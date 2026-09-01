@@ -15,10 +15,17 @@ export function StatusBadge({ status }: { status: string }) {
 export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
   const e = error as ApiError;
+  const unreachable = e?.code === 'API_UNREACHABLE';
+  const hint = Array.isArray(e?.details)
+    ? (e.details.find((d) => typeof d === 'object' && d !== null && 'hint' in d) as { hint?: string } | undefined)?.hint
+    : undefined;
+
   return (
     <div className="error" style={{ marginBottom: 12 }}>
-      <strong>{e.code ?? 'ERROR'}</strong> — {e.message}
-      {Array.isArray(e.details) && e.details.length > 0 && (
+      <strong>{unreachable ? '⚠ API 연결 실패' : (e?.code ?? 'ERROR')}</strong>
+      {' — '}{e?.message ?? String(error)}
+      {hint && <div style={{ marginTop: 6, opacity: 0.85 }}>{hint}</div>}
+      {!unreachable && Array.isArray(e?.details) && e.details.length > 0 && (
         <pre style={{ marginTop: 8, marginBottom: 0 }}>{JSON.stringify(e.details, null, 2)}</pre>
       )}
     </div>

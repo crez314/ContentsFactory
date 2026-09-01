@@ -2,12 +2,13 @@ import 'reflect-metadata';
 process.env.SERVICE_NAME ??= 'orchestrator';
 
 import { NestFactory } from '@nestjs/core';
-import { assertProductionSafety, config, createLogger } from '@cf/common';
+import { assertProductionSafety, config, createLogger, installCrashGuard } from '@cf/common';
 import { OrchestratorModule } from './orchestrator.module';
 
 const log = createLogger('bootstrap');
 
 async function bootstrap(): Promise<void> {
+  installCrashGuard('orchestrator');
   assertProductionSafety();
   const app = await NestFactory.createApplicationContext(OrchestratorModule, { bufferLogs: false });
   app.enableShutdownHooks();

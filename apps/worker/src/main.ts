@@ -2,12 +2,13 @@ import 'reflect-metadata';
 process.env.SERVICE_NAME ??= 'worker';
 
 import { NestFactory } from '@nestjs/core';
-import { assertProductionSafety, config, createLogger } from '@cf/common';
+import { assertProductionSafety, config, createLogger, installCrashGuard } from '@cf/common';
 import { WorkerModule } from './worker.module';
 
 const log = createLogger('bootstrap');
 
 async function bootstrap(): Promise<void> {
+  installCrashGuard('worker');
   assertProductionSafety();
   const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: false });
   app.enableShutdownHooks();
