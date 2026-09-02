@@ -293,3 +293,34 @@ pnpm start:api 또는 pnpm dev 로 API 를 기동한 뒤 새로고침하세요.
 ```
 
 로그인 화면은 별도 경로를 쓰고 있어 같은 처리를 따로 넣었다.
+
+## 24. 종료 경로를 하나로 통일했다 — 이중 close 버그
+
+22번 계측을 넣고 나서 종료 로그에 `Called end on pool more than once` 가 찍혔다.
+
+원인은 종료 경로가 둘이었기 때문이다.
+`app.enableShutdownHooks()` 는 Nest 가 자체 시그널 리스너를 걸어 `app.close()` 를 부르는데,
+여기에 서비스가 직접 만든 핸들러까지 더해 `app.close()` 가 두 번 돌았고,
+TypeORM 커넥션 풀이 두 번 닫히면서 실패했다.
+
+`enableShutdownHooks()` 를 세 서비스에서 모두 제거하고 `onShutdown()` 하나로 통일했다.
+`app.close()` 자체가 `onModuleDestroy` 를 실행하므로 훅이 따로 필요 없다.
+같은 시그널이 두 번 오면 첫 번째만 처리하고, 두 번째는 crash-guard 가 즉시 종료로 받는다.
+
+### 덤: 22번의 「이유 없는 종료」가 무엇이었는지
+
+계측을 넣은 뒤 같은 증상이 재현됐고, 이번에는 이유가 남았다.
+
+```
+warn  crash-guard | signal received — 종료 절차 시작  (SIGTERM, uptimeSec 1303)
+info  shutdown    | closed gracefully
+```
+
+크래시가 아니라 **외부에서 보낸 SIGTERM** 이었다.
+애플리케이션 버그가 아니라 개발 환경이 백그라운드 프로세스를 정리한 것으로,
+운영(ECS)에서는 정상적인 종료 신호에 해당한다.
+
+원인을 추정으로 메우지 않고 계측을 넣어둔 덕분에 한 번의 재현으로 확정할 수 있었다.
+그리고 그 과정에서 훨씬 중요한 것을 잡았다 —
+계측이 없었다면 SIGTERM 을 받고도 프로세스가 죽지 않는 상태(22번)와
+커넥션 풀이 두 번 닫히는 문제(24번)를 모두 운영에서 처음 만났을 것이다.

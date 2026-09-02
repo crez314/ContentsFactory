@@ -87,3 +87,33 @@ export function installCrashGuard(service: string): void {
   }, 60_000);
   timer.unref();
 }
+
+/**
+ * 시그널을 받으면 정리 함수를 한 번만 실행하고 나간다.
+ *
+ * Nest 의 `enableShutdownHooks()` 는 자체 시그널 리스너를 걸어 `app.close()` 를 호출한다.
+ * 여기에 서비스가 직접 만든 핸들러까지 더하면 close 가 두 번 돌아
+ * TypeORM 이 "Called end on pool more than once" 로 실패한다.
+ * 그래서 종료 경로는 이 함수 하나로 통일하고 enableShutdownHooks 는 쓰지 않는다.
+ * (`app.close()` 자체가 onModuleDestroy 를 실행하므로 훅이 따로 필요하지 않다.)
+ */
+export function onShutdown(service: string, close: () => Promise<void>): void {
+  const log = createLogger('shutdown');
+  let closing = false;
+
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(sig, () => {
+      if (closing) return;   // 두 번째 시그널은 crash-guard 가 즉시 종료로 처리한다
+      closing = true;
+      close()
+        .then(() => {
+          log.info('closed gracefully', { service, signal: sig, uptimeSec: Math.round(process.uptime()) });
+          process.exit(0);
+        })
+        .catch((err) => {
+          log.error('graceful close failed', { service, signal: sig, err });
+          process.exit(1);
+        });
+    });
+  }
+}
